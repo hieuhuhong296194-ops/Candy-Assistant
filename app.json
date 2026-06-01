@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Candy Assistant",
+    "slug": "candy-assistant",
+    "version": "1.0.0",
+    "splash": {
+      "backgroundColor": "#1a0533"
+    },
+    "android": {
+      "package": "com.candy.assistant",
+      "permissions": ["RECORD_AUDIO", "INTERNET"]
+    }
+  }
+}
