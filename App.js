@@ -1,41 +1,282 @@
-import React, { useState } from 'react';
+    setInput('');
+  };import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity,
-  StyleSheet, ScrollView, TextInput
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, ActivityIndicator, Linking
 } from 'react-native';
 import * as Speech from 'expo-speech';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { WebView } from 'react-native-webview';
+
+const GEMINI_KEY = 'THAY_API_KEY_VÀO_ĐÂY';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+
+let history = [];
 
 export default function App() {
-  const [input, setInput] = useState('');
+  const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState('Xin chào! Em là Candy 🍬');
+  const [isListening, setIsListening] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [logs, setLogs] = useState([]);
+  const webviewRef = useRef(null);
 
-  const commands = {
-    'xin chào': 'Xin chào anh! Em là Candy, sẵn sàng hỗ trợ!',
-    'mấy giờ rồi': `Bây giờ là ${new Date().toLocaleTimeString('vi-VN')}`,
-    'hôm nay thứ mấy': `Hôm nay là ${new Date().toLocaleDateString('vi-VN', {weekday:'long', day:'numeric', month:'long'})}`,
-    'mở camera': 'Đang mở Camera...',
-    'mở cài đặt': 'Đang mở Cài đặt...',
-    'tăng âm lượng': 'Đang tăng âm lượng...',
-    'giảm âm lượng': 'Đang giảm âm lượng...',
-    'bật wifi': 'Đang bật WiFi...',
-    'tắt wifi': 'Đang tắt WiFi...',
-    'cảm ơn': 'Không có gì ạ! Em luôn sẵn sàng!',
-    'candy ơi': 'Dạ anh gọi em ạ!',
-  };
+  // Kiểm tra mạng mỗi 10 giây
+  useEffect(() => {
+    const check = async () => {
+      try {
+        await fetch('https://www.google.com', { method: 'HEAD' });
+        setIsOnline(true);
+      } catch { setIsOnline(false); }
+    };
+    check();
+    const t = setInterval(check, 10000);
+    return () => clearInterval(t);
+  }, []);
 
-  const handleCommand = (text) => {
-    if (!text.trim()) return;
-    const t = text.toLowerCase();
-    let found = false;
-    for (const [key, val] of Object.entries(commands)) {
-      if (t.includes(key)) {
-        respond(val); found = true; break;
+  // ===== THỰC THI LỆNH THẬT =====
+  const execute = async (intent, entities = {}) => {
+    try {
+      switch (intent) {
+        case 'open_camera':
+          await Linking.openURL('android.media.action.IMAGE_CAPTURE');
+          return 'Đang mở Camera...';
+        case 'open_settings':
+          await IntentLauncher.startActivityAsync('android.settings.SETTINGS');
+          return 'Đang mở Cài đặt...';
+        case 'open_wifi':
+          await IntentLauncher.startActivityAsync('android.settings.WIFI_SETTINGS');
+          return 'Đang mở cài đặt WiFi...';
+        case 'open_bluetooth':
+          await IntentLauncher.startActivityAsync('android.settings.BLUETOOTH_SETTINGS');
+          return 'Đang mở cài đặt Bluetooth...';
+        case 'open_sound':
+          await IntentLauncher.startActivityAsync('android.settings.SOUND_SETTINGS');
+          return 'Đang mở cài đặt âm thanh...';
+        case 'open_battery':
+          await IntentLauncher.startActivityAsync('android.settings.BATTERY_SAVER_SETTINGS');
+          return 'Đang mở cài đặt pin...';
+        case 'open_youtube':
+          await Linking.openURL('vnd.youtube://').catch(() => Linking.openURL('https://youtube.com'));
+          return 'Đang mở YouTube...';
+        case 'open_zalo':
+          await Linking.openURL('zalo://').catch(() => respond('Máy chưa cài Zalo anh ơi!'));
+          return 'Đang mở Zalo...';
+        case 'open_facebook':
+          await Linking.openURL('fb://').catch(() => Linking.openURL('https://facebook.com'));
+          return 'Đang mở Facebook...';
+        case 'open_maps':
+          await Linking.openURL(`geo:0,0?q=${entities.location || ''}`);
+          return 'Đang mở Google Maps...';
+        case 'open_chrome':
+          await Linking.openURL('https://google.com');
+          return 'Đang mở trình duyệt...';
+        case 'make_call':
+          if (entities.number) {
+            await Linking.openURL(`tel:${entities.number}`);
+            return `Đang gọi ${entities.number}...`;
+          }
+          return 'Anh cho em số điện thoại cần gọi nhé!';
+        case 'send_sms':
+          if (entities.number) {
+            await Linking.openURL(`sms:${entities.number}`);
+            return `Đang mở tin nhắn tới ${entities.number}...`;
+          }
+          return 'Anh cho em số điện thoại cần nhắn nhé!';
+        case 'get_time':
+          return `Bây giờ là ${new Date().toLocaleTimeString('vi-VN')}`;
+        case 'get_date':
+          return `Hôm nay là ${new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`;
+        case 'calculate':
+          try {
+            const expr = entities.expression?.replace(/[^0-9+\-*/().]/g, '');
+            const res = Function(`"use strict"; return (${expr})`)();
+            return `Kết quả là ${res}`;
+          } catch { return 'Em không tính được phép tính đó!'; }
+        case 'greeting':
+          return 'Xin chào anh! Em là Candy, sẵn sàng hỗ trợ!';
+        case 'thanks':
+          return 'Không có gì ạ! Em luôn sẵn sàng!';
+        case 'capabilities':
+          return 'Em có thể mở app, gọi điện, nhắn tin, báo giờ ngày, tính toán và trò chuyện với AI!';
+        case 'weather':
+          return isOnline ? 'Để em xem thời tiết cho anh...' : 'Cần có mạng để xem thời tiết anh ơi!';
+        default:
+          return null;
       }
+    } catch {
+      return 'Không thực hiện được lệnh này anh ơi!';
     }
-    if (!found) respond(`Em chưa hiểu lệnh này anh ơi: "${text}"`);
-    setInput('');
   };
+
+  // ===== NHẬN DIỆN Ý ĐỊNH OFFLINE =====
+  const detectIntent = (text) => {
+    const t = text.toLowerCase();
+    const phone = t.match(/(\d{9,11})/)?.[1];
+    const location = t.match(/(?:đến|tới|ở|tại)\s+(.+?)(?:\s|$)/)?.[1];
+    const math = t.match(/(\d+[\s]*[+\-*/×÷][\s]*\d+)/)?.[1]?.replace(/×/g, '*').replace(/÷/g, '/');
+
+    if (/xin chào|chào candy|hello|hi candy/.test(t)) return { intent: 'greeting' };
+    if (/cảm ơn|thank/.test(t)) return { intent: 'thanks' };
+    if (/làm được gì|giúp gì|chức năng|có thể làm/.test(t)) return { intent: 'capabilities' };
+    if (/mấy giờ|bây giờ|giờ mấy|hiện tại mấy giờ/.test(t)) return { intent: 'get_time' };
+    if (/hôm nay|thứ mấy|ngày mấy|tháng mấy|ngày hôm nay/.test(t)) return { intent: 'get_date' };
+    if (/thời tiết|nhiệt độ|trời hôm nay/.test(t)) return { intent: 'weather' };
+    if (/gọi cho|gọi điện|gọi số|gọi/.test(t)) return { intent: 'make_call', entities: { number: phone } };
+    if (/nhắn tin|tin nhắn|sms|nhắn/.test(t)) return { intent: 'send_sms', entities: { number: phone } };
+    if (/mở camera|chụp ảnh|quay video|camera/.test(t)) return { intent: 'open_camera' };
+    if (/cài đặt|setting/.test(t) && !/wifi|bluetooth|âm/.test(t)) return { intent: 'open_settings' };
+    if (/wifi|wi-fi|mạng không dây/.test(t)) return { intent: 'open_wifi' };
+    if (/bluetooth/.test(t)) return { intent: 'open_bluetooth' };
+    if (/âm thanh|âm lượng|volume|loa/.test(t)) return { intent: 'open_sound' };
+    if (/pin|battery|sạc/.test(t)) return { intent: 'open_battery' };
+    if (/youtube|yt/.test(t)) return { intent: 'open_youtube' };
+    if (/zalo/.test(t)) return { intent: 'open_zalo' };
+    if (/facebook|fb/.test(t)) return { intent: 'open_facebook' };
+    if (/bản đồ|maps|chỉ đường|đường đi|google maps/.test(t)) return { intent: 'open_maps', entities: { location } };
+    if (/chrome|trình duyệt|internet|web/.test(t)) return { intent: 'open_chrome' };
+    if (math || /tính|bằng bao nhiêu|kết quả của/.test(t)) return { intent: 'calculate', entities: { expression: math } };
+
+    return { intent: 'unknown' };
+  };
+
+  // ===== XỬ LÝ LỆNH =====
+  const processCommand = async (text) => {
+    setTranscript(text);
+    setLoading(true);
+    try {
+      if (isOnline && GEMINI_KEY !== 'THAY_API_KEY_VÀO_ĐÂY') {
+        await processOnline(text);
+      } else {
+        const { intent, entities } = detectIntent(text);
+        const res = await execute(intent, entities || {});
+        respond(res || `Em chưa hiểu: "${text}"`);
+      }
+    } catch { respond('Có lỗi xảy ra, thử lại anh nhé!'); }
+    setLoading(false);
+  };
+
+  // ===== GEMINI ONLINE =====
+  const processOnline = async (text) => {
+    history.push({ role: 'user', parts: [{ text }] });
+    if (history.length > 10) history = history.slice(-10);
+
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Bạn là Candy, trợ lý AI thông minh trên Android. Luôn trả lời tiếng Việt ngắn gọn 1-2 câu, xưng "em" gọi "anh". Nếu cần thực thi lệnh hệ thống, thêm tag [ACTION:tên] vào đầu. Ví dụ: [ACTION:open_wifi], [ACTION:open_camera], [ACTION:make_call:0123456789]\n\nLịch sử: ${JSON.stringify(history.slice(-4))}\n\nAnh vừa nói: ${text}`
+          }]
+        }]
+      })
+    });
+
+    const data = await res.json();
+    let reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Em chưa hiểu, thử lại nhé!';
+
+    const actionMatch = reply.match(/\[ACTION:([^\]]+)\]/);
+    if (actionMatch) {
+      const parts = actionMatch[1].split(':');
+      await execute(parts[0], { number: parts[1], location: parts[1] });
+      reply = reply.replace(actionMatch[0], '').trim();
+    }
+
+    history.push({ role: 'model', parts: [{ text: reply }] });
+    respond(reply);
+  };
+
+  const respond = (msg) => {
+    setResult(msg);
+    setLogs(p => [`${new Date().toLocaleTimeString('vi-VN')}: ${msg}`, ...p].slice(0, 20));
+    Speech.speak(msg, { language: 'vi-VN', pitch: 1.5, rate: 0.9 });
+  };
+
+  // WebView mic HTML
+  const micHTML = `<html><body><script>
+    var r = new webkitSpeechRecognition();
+    r.lang='vi-VN'; r.continuous=false; r.interimResults=false;
+    r.onresult=e=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'result',text:e.results[0][0].transcript}));
+    r.onerror=e=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'error'}));
+    r.onend=()=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'end'}));
+    function start(){r.start()} function stop(){r.stop()}
+  </script></body></html>`;
+
+  return (
+    <View style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>🍬 Candy Assistant</Text>
+        <Text style={[s.status, { color: isOnline ? '#4ade80' : '#f87171' }]}>
+          {isOnline ? '● Online · Gemini AI' : '● Offline · Lệnh thông minh'}
+        </Text>
+      </View>
+
+      <WebView
+        ref={webviewRef}
+        source={{ html: micHTML }}
+        style={{ height: 0, width: 0, opacity: 0 }}
+        onMessage={e => {
+          const d = JSON.parse(e.nativeEvent.data);
+          if (d.type === 'result') processCommand(d.text);
+          if (d.type === 'end') setIsListening(false);
+        }}
+        javaScriptEnabled
+        mediaPlaybackRequiresUserAction={false}
+      />
+
+      <View style={s.resultBox}>
+        <Text style={s.label}>Candy nói:</Text>
+        {loading
+          ? <ActivityIndicator color="#c084fc" style={{ marginTop: 8 }} />
+          : <Text style={s.resultText}>{result}</Text>
+        }
+      </View>
+
+      {transcript ? (
+        <View style={s.transcriptBox}>
+          <Text style={s.label}>Anh nói:</Text>
+          <Text style={s.transcriptText}>{transcript}</Text>
+        </View>
+      ) : null}
+
+      <TouchableOpacity
+        style={[s.mic, isListening && s.micOn]}
+        onPressIn={() => { setIsListening(true); webviewRef.current?.injectJavaScript('start();true;'); }}
+        onPressOut={() => webviewRef.current?.injectJavaScript('stop();true;')}
+        disabled={loading}
+      >
+        <Text style={{ fontSize: 44 }}>{isListening ? '🔴' : '🎙️'}</Text>
+        <Text style={s.micText}>
+          {loading ? 'Đang xử lý...' : isListening ? 'Đang nghe...' : 'Giữ để nói'}
+        </Text>
+      </TouchableOpacity>
+
+      <ScrollView style={s.log}>
+        <Text style={s.label}>Nhật ký:</Text>
+        {logs.map((l, i) => <Text key={i} style={s.logText}>• {l}</Text>)}
+      </ScrollView>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#1a0533', padding: 20, paddingTop: 50 },
+  header: { alignItems: 'center', marginBottom: 16 },
+  title: { fontSize: 26, fontWeight: 'bold', color: '#f9a8d4' },
+  status: { fontSize: 12, marginTop: 4 },
+  resultBox: { backgroundColor: '#2d1050', borderRadius: 14, padding: 16, marginBottom: 12, minHeight: 80, borderWidth: 1, borderColor: '#6b21a8', justifyContent: 'center' },
+  label: { color: '#c084fc', fontSize: 11, marginBottom: 4 },
+  resultText: { color: '#fff', fontSize: 15, lineHeight: 24 },
+  transcriptBox: { backgroundColor: '#1e0a3c', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#4a1090' },
+  transcriptText: { color: '#e2d4f5', fontSize: 14 },
+  mic: { backgroundColor: '#7e22ce', borderRadius: 100, width: 140, height: 140, alignSelf: 'center', justifyContent: 'center', alignItems: 'center', marginBottom: 16, elevation: 8 },
+  micOn: { backgroundColor: '#e00040' },
+  micText: { color: '#fff', fontSize: 13, marginTop: 6, fontWeight: '500' },
+  log: { flex: 1, backgroundColor: '#2d1050', borderRadius: 12, padding: 10 },
+  logText: { color: '#9d6ea0', fontSize: 12, marginBottom: 4 },
+});
 
   const respond = (msg) => {
     setResult(msg);
