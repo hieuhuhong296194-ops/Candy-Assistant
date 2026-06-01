@@ -1,5 +1,4 @@
-    setInput('');
-  };import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Linking
@@ -168,7 +167,7 @@ export default function App() {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Bạn là Candy, trợ lý AI thông minh trên Android. Luôn trả lời tiếng Việt ngắn gọn 1-2 câu, xưng "em" gọi "anh". Nếu cần thực thi lệnh hệ thống, thêm tag [ACTION:tên] vào đầu. Ví dụ: [ACTION:open_wifi], [ACTION:open_camera], [ACTION:make_call:0123456789]\n\nLịch sử: ${JSON.stringify(history.slice(-4))}\n\nAnh vừa nói: ${text}`
+            text: `Bạn là Candy, trợ lý AI thông minh trên Android. Luôn trả lời tiếng Việt ngắn gọn 1-2 câu, xưng "em" gọi "anh". Nếu cần thực thi lệnh hệ thống, trả lời dạng [ACTION:intent:param]. Lịch sử cuộc trò chuyện: ${JSON.stringify(history)}. Câu hỏi mới: ${text}`
           }]
         }]
       })
@@ -275,101 +274,5 @@ const s = StyleSheet.create({
   micOn: { backgroundColor: '#e00040' },
   micText: { color: '#fff', fontSize: 13, marginTop: 6, fontWeight: '500' },
   log: { flex: 1, backgroundColor: '#2d1050', borderRadius: 12, padding: 10 },
-  logText: { color: '#9d6ea0', fontSize: 12, marginBottom: 4 },
-});
-
-  const respond = (msg) => {
-    setResult(msg);
-    setLogs(p => [
-      `${new Date().toLocaleTimeString('vi-VN')}: ${msg}`,
-      ...p
-    ].slice(0, 15));
-    Speech.speak(msg, { language: 'vi-VN', pitch: 1.1, rate: 0.9 });
-  };
-
-  return (
-    <View style={s.container}>
-      <View style={s.header}>
-        <Text style={s.title}>🍬 Candy Assistant</Text>
-        <Text style={s.subtitle}>Trợ lý giọng nói tiếng Việt</Text>
-      </View>
-
-      <View style={s.resultBox}>
-        <Text style={s.resultLabel}>Candy nói:</Text>
-        <Text style={s.resultText}>{result}</Text>
-      </View>
-
-      <TextInput
-        style={s.input}
-        value={input}
-        onChangeText={setInput}
-        placeholder="Nhập lệnh tiếng Việt..."
-        placeholderTextColor="#666"
-        onSubmitEditing={() => handleCommand(input)}
-        returnKeyType="send"
-      />
-
-      <TouchableOpacity
-        style={s.btn}
-        onPress={() => handleCommand(input)}
-      >
-        <Text style={s.btnText}>🍬 Gửi lệnh cho Candy</Text>
-      </TouchableOpacity>
-
-      <View style={s.hintBox}>
-        <Text style={s.hintTitle}>Lệnh mẫu:</Text>
-        <Text style={s.hint}>• Xin chào · Mấy giờ rồi</Text>
-        <Text style={s.hint}>• Mở camera · Mở cài đặt</Text>
-        <Text style={s.hint}>• Tăng âm lượng · Bật wifi</Text>
-      </View>
-
-      <ScrollView style={s.log}>
-        <Text style={s.logTitle}>Nhật ký:</Text>
-        {logs.map((l, i) => (
-          <Text key={i} style={s.logText}>• {l}</Text>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  container: {
-    flex: 1, backgroundColor: '#1a0533',
-    padding: 20, paddingTop: 50,
-  },
-  header: { alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#f9a8d4' },
-  subtitle: { fontSize: 13, color: '#9d6ea0', marginTop: 4 },
-  resultBox: {
-    backgroundColor: '#2d1050', borderRadius: 14,
-    padding: 16, marginBottom: 14, minHeight: 80,
-    borderWidth: 1, borderColor: '#6b21a8',
-  },
-  resultLabel: { color: '#c084fc', fontSize: 11, marginBottom: 6 },
-  resultText: { color: '#fff', fontSize: 16, lineHeight: 24 },
-  input: {
-    backgroundColor: '#2d1050', borderRadius: 12,
-    padding: 14, color: '#fff', fontSize: 15,
-    marginBottom: 10, borderWidth: 1, borderColor: '#6b21a8',
-  },
-  btn: {
-    backgroundColor: '#7e22ce', borderRadius: 12,
-    padding: 14, alignItems: 'center', marginBottom: 14,
-    elevation: 4,
-  },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
-  hintBox: {
-    backgroundColor: '#2d1050', borderRadius: 12,
-    padding: 12, marginBottom: 14,
-    borderWidth: 1, borderColor: '#3b1065',
-  },
-  hintTitle: { color: '#c084fc', fontSize: 12, marginBottom: 4 },
-  hint: { color: '#9d6ea0', fontSize: 12, lineHeight: 20 },
-  log: {
-    flex: 1, backgroundColor: '#2d1050',
-    borderRadius: 12, padding: 10,
-  },
-  logTitle: { color: '#c084fc', fontSize: 12, marginBottom: 6 },
   logText: { color: '#9d6ea0', fontSize: 12, marginBottom: 4 },
 });
